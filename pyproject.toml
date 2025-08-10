@@ -1,0 +1,15 @@
+[project]
+name = "txt2epub"
+version = "0.1.0"
+description = "Add your description here"
+requires-python = ">=3.13"
+dependencies = [
+    "chardet>=5.2.0",
+    "charset-normalizer>=3.4.3",
+    "ebooklib>=0.19",
+    "pillow>=11.3.0",
+    "pyinstaller>=6.15.0",
+]
+
+[project.scripts]
+txt2epub_gui = "txt2epub_gui:main"
