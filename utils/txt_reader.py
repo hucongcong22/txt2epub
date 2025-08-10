@@ -148,7 +148,7 @@ def merge_lines(text):
 # 用法示例
 # -------------------------------------------------------------
 if __name__ == "__main__":
-    p = Path("C:\\Users\\hucc\\Downloads\\Telegram Desktop\\《极品家丁萧玉霜系列》.txt")
+    p = Path("C:\\Users\\hucc\\Downloads\\Telegram Desktop\\凡人修仙传.txt")
     # 只想要章节正文（List[str]）
     chapters = read_txt(p)
     print(len(chapters), "章")      # 报告章节数
