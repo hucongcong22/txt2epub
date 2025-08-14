@@ -6,10 +6,6 @@ from pathlib import Path
 import os
 import ctypes
 
-from utils.logger import setup_logger
-from utils.txt_reader import read_txt, detect_encoding
-from utils.epub_builder import build_epub
-
 # 启用高DPI支持
 try:
     # Windows环境下启用高DPI支持
@@ -17,7 +13,20 @@ try:
 except Exception:
     pass
 
+from utils.logger import setup_logger
+from utils.txt_reader import read_txt, detect_encoding
+from utils.epub_builder import build_epub
+
+# 尝试导入PIL用于图片处理
+try:
+    from PIL import Image, ImageTk
+    PIL_AVAILABLE = True
+except ImportError:
+    PIL_AVAILABLE = False
+
 log = setup_logger(__name__)
+if not PIL_AVAILABLE:
+    log.warning("未安装PIL库，封面预览功能将不可用")
 
 class Txt2EpubGUI:
     def __init__(self, root):
@@ -46,6 +55,10 @@ class Txt2EpubGUI:
         self.cover_path = tk.StringVar()
         self.encoding = tk.StringVar()
         self.debug_mode = tk.BooleanVar()
+        
+        # 封面预览相关变量
+        self.cover_image = None
+        self.cover_photo = None
         
         self.create_widgets()
         self.configure_styles()
@@ -145,18 +158,30 @@ class Txt2EpubGUI:
         ttk.Entry(cover_frame, textvariable=self.cover_path, font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
         ttk.Button(cover_frame, text="浏览...", command=self.browse_cover).grid(row=0, column=1)
         
+        # 封面预览区域
+        self.cover_preview_frame = ttk.LabelFrame(main_frame, text="封面预览", padding="5")
+        self.cover_preview_frame.grid(row=6, column=1, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        self.cover_preview_frame.columnconfigure(0, weight=1)
+        self.cover_preview_frame.rowconfigure(0, weight=1)
+        
+        self.cover_preview_label = ttk.Label(self.cover_preview_frame)
+        self.cover_preview_label.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        
+        # 隐藏预览区域直到选择图片
+        self.cover_preview_frame.grid_remove()
+        
         # 编码
-        ttk.Label(main_frame, text="文件编码:", font=self.default_font).grid(row=6, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.encoding, font=self.default_font).grid(row=6, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        ttk.Label(main_frame, text="留空则自动检测", font=('Arial', 8, 'italic')).grid(row=7, column=1, sticky=tk.W, pady=(0, 10))
+        ttk.Label(main_frame, text="文件编码:", font=self.default_font).grid(row=7, column=0, sticky=tk.W, pady=5)
+        ttk.Entry(main_frame, textvariable=self.encoding, font=self.default_font).grid(row=7, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        ttk.Label(main_frame, text="留空则自动检测", font=('Arial', 8, 'italic')).grid(row=8, column=1, sticky=tk.W, pady=(0, 10))
         
         # 调试模式
-        ttk.Checkbutton(main_frame, text="调试模式", variable=self.debug_mode).grid(row=8, column=0, sticky=tk.W, pady=5)
+        ttk.Checkbutton(main_frame, text="调试模式", variable=self.debug_mode).grid(row=9, column=0, sticky=tk.W, pady=5)
         
         # 日志文本框
-        ttk.Label(main_frame, text="处理日志:", font=self.default_font).grid(row=9, column=0, sticky=tk.W, pady=(10, 5))
+        ttk.Label(main_frame, text="处理日志:", font=self.default_font).grid(row=10, column=0, sticky=tk.W, pady=(10, 5))
         log_frame = ttk.Frame(main_frame)
-        log_frame.grid(row=10, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        log_frame.grid(row=11, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
         self.log_text = tk.Text(log_frame, height=18, font=self.default_font)
@@ -169,12 +194,12 @@ class Txt2EpubGUI:
         
         # 按钮框架
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=11, column=0, columnspan=3, pady=15)
+        button_frame.grid(row=12, column=0, columnspan=3, pady=15)
         ttk.Button(button_frame, text="开始转换", command=self.convert).pack(side=tk.LEFT, padx=5)
         ttk.Button(button_frame, text="退出程序", command=self.root.quit).pack(side=tk.LEFT, padx=5)
         
         # 配置主框架的行权重
-        main_frame.rowconfigure(10, weight=1)
+        main_frame.rowconfigure(11, weight=1)
         
     def browse_input(self):
         # 保存当前窗口状态
@@ -212,6 +237,47 @@ class Txt2EpubGUI:
         )
         if filename:
             self.cover_path.set(filename)
+            self.show_cover_preview(filename)
+            
+    def show_cover_preview(self, image_path):
+        """显示封面预览"""
+        # 如果PIL不可用，直接返回
+        if not PIL_AVAILABLE:
+            self.cover_preview_frame.grid_remove()
+            return
+            
+        try:
+            from PIL import Image, ImageTk
+            
+            # 显示预览区域
+            self.cover_preview_frame.grid()
+            
+            # 打开并调整图片大小以适应预览区域
+            image = Image.open(image_path)
+            
+            # 计算合适的预览尺寸
+            max_width = 300
+            max_height = 200
+            
+            # 计算缩放比例
+            ratio = min(max_width/image.width, max_height/image.height)
+            new_width = int(image.width * ratio)
+            new_height = int(image.height * ratio)
+            
+            # 调整图片大小
+            resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # 转换为Tkinter可用的图片格式
+            self.cover_photo = ImageTk.PhotoImage(resized_image)
+            
+            # 更新预览标签
+            self.cover_preview_label.configure(image=self.cover_photo)
+            self.cover_preview_label.image = self.cover_photo  # 保持引用以防止被垃圾回收
+            
+        except Exception as e:
+            log.debug(f"显示封面预览失败: {e}")
+            # 隐藏预览区域
+            self.cover_preview_frame.grid_remove()
             
     def log_message(self, message):
         self.log_text.insert(tk.END, message + "\n")
