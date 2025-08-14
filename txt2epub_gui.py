@@ -4,10 +4,18 @@ import argparse
 import sys
 from pathlib import Path
 import os
+import ctypes
 
 from utils.logger import setup_logger
 from utils.txt_reader import read_txt, detect_encoding
 from utils.epub_builder import build_epub
+
+# 启用高DPI支持
+try:
+    # Windows环境下启用高DPI支持
+    ctypes.windll.shcore.SetProcessDpiAwareness(1)
+except Exception:
+    pass
 
 log = setup_logger(__name__)
 
@@ -15,15 +23,20 @@ class Txt2EpubGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("TXT转EPUB工具")
-        self.root.geometry("700x600")
+
+        self.root.geometry("900x700")
+        self.root.minsize(900, 700)
         self.root.resizable(True, True)
         
         # 设置图标
         self.set_app_icon()
         
-        # 定义字体
-        self.default_font = ('Arial', 10)
-        self.title_font = ('Arial', 12, 'bold')
+        # 定义字体 - 根据DPI调整字体大小
+        self.default_font = ('宋体', 10)
+        self.title_font = ('宋体', 12, 'bold')
+        
+        # 检查DPI并调整字体大小
+        self.adjust_for_dpi()
         
         # 变量
         self.input_path = tk.StringVar()
@@ -36,6 +49,30 @@ class Txt2EpubGUI:
         
         self.create_widgets()
         self.configure_styles()
+        
+    def adjust_for_dpi(self):
+        """根据屏幕DPI调整字体大小"""
+        try:
+            # 获取窗口的DPI
+            if sys.platform == "win32":
+                hdc = ctypes.windll.user32.GetDC(0)
+                dpi = ctypes.windll.gdi32.GetDeviceCaps(hdc, 88)  # LOGPIXELSX
+                ctypes.windll.user32.ReleaseDC(0, hdc)
+                
+                # 根据标准DPI (96) 计算缩放因子
+                scale_factor = dpi / 96.0
+                
+                # 调整字体大小
+                if scale_factor > 1.0:
+                    base_size = 10
+                    title_size = 12
+                    self.default_font = ('宋体', int(base_size * scale_factor))
+                    self.title_font = ('宋体', int(title_size * scale_factor), 'bold')
+        except Exception as e:
+            log.debug(f"DPI调整失败: {e}")
+            # 使用默认字体设置
+            self.default_font = ('宋体', 10)
+            self.title_font = ('宋体', 12, 'bold')
         
     def set_app_icon(self):
         """设置应用程序图标"""
@@ -50,7 +87,9 @@ class Txt2EpubGUI:
                 
             icon_path = os.path.join(application_path, "icons", "app.png")
             if os.path.exists(icon_path):
-                self.root.iconbitmap(icon_path)
+                # 对于PNG图标，需要使用PhotoImage而不是iconbitmap
+                icon = tk.PhotoImage(file=icon_path)
+                self.root.iconphoto(True, icon)
         except Exception as e:
             log.debug(f"设置图标失败: {e}")
             # 设置默认图标
@@ -120,7 +159,7 @@ class Txt2EpubGUI:
         log_frame.grid(row=10, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
-        self.log_text = tk.Text(log_frame, height=12, font=('Consolas', 9))
+        self.log_text = tk.Text(log_frame, height=18, font=self.default_font)
         log_scroll_y = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
         log_scroll_x = ttk.Scrollbar(log_frame, orient=tk.HORIZONTAL, command=self.log_text.xview)
         self.log_text.configure(yscrollcommand=log_scroll_y.set, xscrollcommand=log_scroll_x.set)
@@ -138,9 +177,11 @@ class Txt2EpubGUI:
         main_frame.rowconfigure(10, weight=1)
         
     def browse_input(self):
+        # 保存当前窗口状态
+        self.root.update_idletasks()
         filename = filedialog.askopenfilename(
             title="选择TXT文件",
-            filetypes=[("TXT files", "*.txt"), ("All files", "*.*")]
+            filetypes=[("TXT文件", "*.txt"), ("所有文件", "*.*")]
         )
         if filename:
             self.input_path.set(filename)
@@ -148,22 +189,26 @@ class Txt2EpubGUI:
             if not self.title.get():
                 self.title.set(Path(filename).stem)
             # 如果没有设置输出路径，则使用输入路径加上.epub扩展名
-            if not self.output_path.get():
-                self.output_path.set(str(Path(filename).with_suffix('.epub')))
+                if not self.output_path.get():
+                    self.output_path.set(str(Path(filename).with_suffix('.epub')))
                 
     def browse_output(self):
+        # 保存当前窗口状态
+        self.root.update_idletasks()
         filename = filedialog.asksaveasfilename(
             title="保存EPUB文件",
             defaultextension=".epub",
-            filetypes=[("EPUB files", "*.epub"), ("All files", "*.*")]
+            filetypes=[("EPUB文件", "*.epub"), ("所有文件", "*.*")]
         )
         if filename:
             self.output_path.set(filename)
             
     def browse_cover(self):
+        # 保存当前窗口状态
+        self.root.update_idletasks()
         filename = filedialog.askopenfilename(
             title="选择封面图片",
-            filetypes=[("Image files", "*.jpg *.jpeg *.png"), ("All files", "*.*")]
+            filetypes=[("图片文件", "*.jpg *.jpeg *.png"), ("所有文件", "*.*")]
         )
         if filename:
             self.cover_path.set(filename)
@@ -223,7 +268,7 @@ class Txt2EpubGUI:
             )
             
             self.log_message(f"完成: {output_path}")
-            messagebox.showinfo("成功", f"EPUB文件已生成:\n{output_path}")
+            messagebox.showinfo("成功", f"EPUB文件已生成:{output_path}")
             
         except Exception as e:
             self.log_message(f"转换过程中出错: {str(e)}")
