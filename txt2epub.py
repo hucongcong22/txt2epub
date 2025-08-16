@@ -19,8 +19,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('-t', '--title', help="EPUB 标题（默认文件名）")
     parser.add_argument('-a', '--author', default="作者未知", help="作者")
     parser.add_argument('-c', '--cover', type=Path, help="封面图片（JPG/PNG）")
-    parser.add_argument('-e', '--encoding', help="手动指定源文件编码")
+    parser.add_argument('-e', '--encoding', help="手动指定源文件编码 (如: utf-8, gbk, gb2312, big5)")
     parser.add_argument('-d', '--debug', action='store_true', help="调试模式，输出 DEBUG 级日志")
+    parser.add_argument('--no-clean', action='store_true', help="禁用文本净化功能")
 
     return parser.parse_args()
 
@@ -35,12 +36,18 @@ def main() -> None:
         sys.exit(1)
 
     # 读取文本
-    log.info("检测文件编码……")
-    enc = args.encoding or detect_encoding(args.input)[0]
-    log.debug("文件编码: %s", enc)
+    if args.encoding:
+        enc = args.encoding
+        log.info("使用指定编码: %s", enc)
+    else:
+        log.info("检测文件编码……")
+        enc, confidence = detect_encoding(args.input)
+        log.info("检测到的文件编码: %s (置信度: %.2f)", enc, confidence)
 
     log.info("读取文本……")
-    lines = read_txt(args.input, enc,split_include_title=True)
+    # 如果用户禁用了文本净化功能，则传入空列表作为clean_rules参数
+    clean_rules = [] if args.no_clean else None
+    lines = read_txt(args.input, enc, split_include_title=True, clean_rules=clean_rules)
 
     if not lines:
         log.error("文件为空或无法读取文本")

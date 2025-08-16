@@ -8,14 +8,64 @@ from typing import List, Tuple, Optional, Any
 
 
 def detect_encoding(file_path: Path) -> tuple[Any, Any]:
-    """通过读取文件前 N 字节来推断编码"""
-    print(file_path)
-    raw = open(file_path, 'rb').read()
+    """通过读取文件来推断编码，优先考虑中文编码"""
+    try:
+        raw = open(file_path, 'rb').read()
+    except Exception as e:
+        # 如果无法读取文件，返回默认编码
+        return 'utf-8', 0.0
 
-    res = charset_normalizer.detect(raw)  # 返回 dict 和 list
-    # res['encoding'] -> str / None
-    # res['confidence'] -> float
-    return res['encoding'] or 'utf-8', res['confidence']
+    # 使用 charset_normalizer 检测编码
+    try:
+        res = charset_normalizer.detect(raw)
+        detected_encoding = res['encoding']
+        confidence = res['confidence']
+    except Exception as e:
+        # 如果 charset_normalizer 出错，设置默认值
+        detected_encoding = 'utf-8'
+        confidence = 0.0
+    
+    # 确保 confidence 不是 None
+    if confidence is None:
+        confidence = 0.0
+    
+    # 确保 detected_encoding 不是 None
+    if detected_encoding is None:
+        detected_encoding = 'utf-8'
+    
+    # 对于中文文本，优先考虑常见的中文编码
+    # 如果检测到的编码置信度较低，尝试其他常见的中文编码
+    common_chinese_encodings = ['utf-8', 'gbk', 'gb2312', 'big5']
+    
+    if confidence < 0.8 or detected_encoding not in common_chinese_encodings:
+        # 尝试解码每种编码，看哪种更合理
+        best_encoding = detected_encoding
+        best_score = 0
+        
+        for encoding in common_chinese_encodings:
+            try:
+                # 尝试解码前1000个字符来评估编码的合理性
+                sample = raw[:1000].decode(encoding)
+                # 简单评估：检查是否有太多乱码字符
+                # 中文文本应该有较多的中文字符
+                chinese_chars = len([c for c in sample if '\u4e00' <= c <= '\u9fff'])
+                total_chars = len(sample)
+                score = chinese_chars / total_chars if total_chars > 0 else 0
+                
+                if score > best_score:
+                    best_score = score
+                    best_encoding = encoding
+            except (UnicodeDecodeError, LookupError):
+                # 如果解码失败，跳过此编码
+                continue
+        
+        # 如果找到了更好的编码，使用它
+        if best_encoding != detected_encoding and best_score > 0.1:
+            detected_encoding = best_encoding
+            # 置信度设为基于评分的估计值
+            confidence = min(best_score, 1.0)
+    
+    return detected_encoding or 'utf-8', confidence or 0.0
 
 
 def read_txt(
@@ -23,7 +73,8 @@ def read_txt(
         encoding: Optional[str] = None,
         *,
         chapter_regex: str = r"^\s*(?P<title>(?:第([零〇一二三四五六七八九十百千万]|[0-9])+[章节回卷篇]+|Chapter\s+\d+)[^\n]{0,30})",
-        split_include_title: bool = False
+        split_include_title: bool = False,
+        clean_rules: list = None
 ) -> List[str] | List[Tuple[str, str]]:
     """
     读取 TXT 并以 **章节** 列表形式返回。
@@ -41,6 +92,7 @@ def read_txt(
     split_include_title:  bool
         * False   → 仅返回章节正文（`List[str]`）
         * True    → 返回 `List[(title, body)]`，每个元素包含标题和正文
+    clean_rules: list      文本净化规则列表，默认为None使用默认规则
 
     返回
     ----
@@ -55,8 +107,11 @@ def read_txt(
     # ① 一次性把整个文件读进来
     text = file_path.read_text(encoding=encoding, errors="replace")
     text = merge_lines(text)
+    
+    # ② 文本净化
+    text = clean_text(text, clean_rules)
 
-    # ② 编译正则 - 添加多行匹配模式
+    # ③ 编译正则 - 添加多行匹配模式
     chapter_pat = re.compile(chapter_regex, re.IGNORECASE | re.VERBOSE | re.MULTILINE)
 
     # ③ 找到所有标题的位置信息
@@ -98,9 +153,11 @@ def read_txt(
     # ⑤ 返回最终列表
     return result
 
+
 def merge_lines(text):
     """
     将不以标点符号结尾的行与下一行合并，保留段落结构
+    但保留章节标题的独立性
 
     参数:
         text (str): 输入的文本字符串
@@ -110,39 +167,114 @@ def merge_lines(text):
     """
     # 定义中英文标点符号集合
     punctuation = r'[。！？.?!…」*”)）]'
-
+    
+    # 定义章节标题模式
+    chapter_pattern =  r"^\s*(?P<title>(?:第([零〇一二三四五六七八九十百千万]|[0-9])+[章节回卷篇]+|Chapter\s+\d+)[^\n]{0,30})"
+    
     # 将文本按行分割
     lines = text.splitlines()
     merged_lines = []
     i = 0
     n = len(lines)
 
-
     while i < n:
-
         current_line = lines[i].rstrip()  # 移除行尾空白字符
-
-        if len(merged_lines) == 0:
+        
+        # 如果当前行是章节标题，单独保留
+        if re.match(chapter_pattern, current_line):
+            if merged_lines and merged_lines[-1]:  # 如果前一行不为空，添加一个空行
+                merged_lines.append("")
             merged_lines.append(current_line)
-        previous_line = merged_lines[- 1].rstrip()
-        previous_ends_with_punctuation = re.search(punctuation + r'\s*$', previous_line) is not None
-        if not previous_ends_with_punctuation:
-            if current_line and len(current_line)>1:
-                merged_lines[-1] += current_line.replace('\n', '')
+            merged_lines.append("")  # 章节标题后添加空行
             i += 1
             continue
 
+        # 如果是第一行
+        if len(merged_lines) == 0:
+            merged_lines.append(current_line)
+            i += 1
+            continue
+            
+        # 检查前一行是否以标点符号结尾
+        previous_line = merged_lines[-1].rstrip()
+        previous_ends_with_punctuation = re.search(punctuation + r'\s*$', previous_line) is not None
+        
+        # 如果前一行不以标点符号结尾，且当前行不为空，合并两行
+        if not previous_ends_with_punctuation and current_line:
+            # 但不要合并章节标题
+            if not re.match(chapter_pattern, current_line):
+                merged_lines[-1] += current_line
+                i += 1
+                continue
 
         # 如果是空行，直接保留
-        if not current_line and previous_ends_with_punctuation:
-            merged_lines.append(current_line)
+        if not current_line:
+            # 只有当前一行以标点结尾时才添加空行
+            if previous_ends_with_punctuation or not merged_lines[-1]:
+                merged_lines.append(current_line)
             i += 1
             continue
         else:
             merged_lines.append(current_line)
-            i+=1
+            i += 1
+            
     # 重新构建文本，保留原有段落结构
     return '\n'.join(merged_lines)
+
+
+def clean_text(text: str, clean_rules: list = None) -> str:
+    """
+    清理文本内容，移除不需要的字符和格式
+    
+    参数:
+        text (str): 原始文本
+        clean_rules (list): 清理规则列表，默认为None使用默认规则
+        
+    返回:
+        str: 清理后的文本
+    
+    默认清理规则:
+        1. 移除多余的空白字符（保留单个空格）
+        2. 移除行首行尾的空白字符
+        3. 移除常见的广告文本
+        4. 移除乱码字符
+        5. 标准化换行符
+    """
+    if clean_rules is None:
+        # 默认清理规则
+        clean_rules = [
+            # 移除行首行尾空白字符
+            (r'^\s+', '', '行首空白字符'),
+            (r'\s+$', '', '行尾空白字符'),
+            # 移除多余的空白字符（保留单个空格）
+            (r'[ \t]{2,}', ' ', '多余空白字符'),
+            # 移除常见的广告文本模式
+            (r'本书由.*?txt小说电子书下载', '', '广告文本1'),
+            (r'小说天堂.*?免费下载', '', '广告文本2'),
+            (r'请记住本书首发域名.*?。第一时间更新', '', '广告文本3'),
+            (r'电脑站.*?手机站.*?最新最快', '', '广告文本4'),
+            (r'【推荐下，.*?追书真的好用', '', '广告文本5'),
+            (r'天才一秒记住.*?，精彩小说无弹窗免费阅读！', '', '广告文本6'),
+            # 移除乱码字符（常见的乱码模式）
+            (r'□', '', '乱码字符1'),
+            (r'', '', '乱码字符2'),
+            (r'[-\uF8FF]', '', '私有区字符'),
+            # 标准化换行符
+            (r'\r\n', '\n', 'Windows换行符'),
+            (r'\r', '\n', 'Mac换行符'),
+            # 移除多余的空行（保留最多2个连续换行）
+            (r'\n{3,}', '\n\n', '多余空行'),
+        ]
+    
+    cleaned_text = text
+    for pattern, replacement, description in clean_rules:
+        try:
+            cleaned_text = re.sub(pattern, replacement, cleaned_text)
+        except re.error as e:
+            # 如果正则表达式有错误，跳过该规则
+            pass
+    
+    return cleaned_text.strip()
 
 # -------------------------------------------------------------
 # 用法示例

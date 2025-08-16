@@ -55,6 +55,11 @@ class Txt2EpubGUI:
         self.cover_path = tk.StringVar()
         self.encoding = tk.StringVar()
         self.debug_mode = tk.BooleanVar()
+        self.disable_clean = tk.BooleanVar()  # 文本净化选项
+        
+        # 常见编码列表
+        self.common_encodings = ['自动检测', 'UTF-8', 'GBK', 'GB2312', 'BIG5', 'UTF-16']
+        self.selected_encoding = tk.StringVar(value='自动检测')
         
         # 封面预览相关变量
         self.cover_image = None
@@ -172,11 +177,17 @@ class Txt2EpubGUI:
         
         # 编码
         ttk.Label(main_frame, text="文件编码:", font=self.default_font).grid(row=7, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.encoding, font=self.default_font).grid(row=7, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
-        ttk.Label(main_frame, text="留空则自动检测", font=('Arial', 8, 'italic')).grid(row=8, column=1, sticky=tk.W, pady=(0, 10))
+        encoding_frame = ttk.Frame(main_frame)
+        encoding_frame.grid(row=7, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        encoding_frame.columnconfigure(0, weight=1)
+        ttk.Combobox(encoding_frame, textvariable=self.selected_encoding, values=self.common_encodings, state="readonly", font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E))
+        ttk.Label(main_frame, text="选择文件编码格式", font=('Arial', 8, 'italic')).grid(row=8, column=1, sticky=tk.W, pady=(0, 10))
         
         # 调试模式
         ttk.Checkbutton(main_frame, text="调试模式", variable=self.debug_mode).grid(row=9, column=0, sticky=tk.W, pady=5)
+        
+        # 文本净化选项
+        ttk.Checkbutton(main_frame, text="禁用文本净化", variable=self.disable_clean).grid(row=9, column=1, sticky=tk.W, pady=5)
         
         # 日志文本框
         ttk.Label(main_frame, text="处理日志:", font=self.default_font).grid(row=10, column=0, sticky=tk.W, pady=(10, 5))
@@ -304,13 +315,24 @@ class Txt2EpubGUI:
             # 检测编码
             self.log_message("=" * 50)
             self.log_message("开始转换...")
-            self.log_message("检测文件编码...")
-            enc = self.encoding.get() or detect_encoding(input_path)[0]
-            self.log_message(f"文件编码: {enc}")
+            
+            # 使用用户选择的编码或自动检测
+            if self.selected_encoding.get() == '自动检测':
+                self.log_message("检测文件编码...")
+                enc, confidence = detect_encoding(input_path)
+                self.log_message(f"检测到的文件编码: {enc} (置信度: {confidence:.2f})")
+            elif self.selected_encoding.get():
+                enc = self.selected_encoding.get()
+                self.log_message(f"使用指定编码: {enc}")
+            else:
+                enc = self.encoding.get() or detect_encoding(input_path)[0]
+                self.log_message(f"文件编码: {enc}")
             
             # 读取文本
             self.log_message("读取文本...")
-            lines = read_txt(input_path, enc, split_include_title=True)
+            # 如果用户禁用了文本净化功能，则传入空列表作为clean_rules参数
+            clean_rules = [] if self.disable_clean.get() else None
+            lines = read_txt(input_path, enc, split_include_title=True, clean_rules=clean_rules)
             
             if not lines:
                 self.log_message("文件为空或无法读取文本")
