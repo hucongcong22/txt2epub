@@ -32,9 +32,10 @@ class Txt2EpubGUI:
     def __init__(self, root):
         self.root = root
         self.root.title("TXT转EPUB工具")
+        self.root.configure(background='#fafafa')
 
-        self.root.geometry("900x700")
-        self.root.minsize(900, 700)
+        self.root.geometry("900x1000")
+        self.root.minsize(900, 1000)
         self.root.resizable(True, True)
         
         # 设置图标
@@ -83,14 +84,14 @@ class Txt2EpubGUI:
                 # 调整字体大小
                 if scale_factor > 1.0:
                     base_size = 10
-                    title_size = 12
+                    title_size = 16
                     self.default_font = ('宋体', int(base_size * scale_factor))
                     self.title_font = ('宋体', int(title_size * scale_factor), 'bold')
         except Exception as e:
             log.debug(f"DPI调整失败: {e}")
             # 使用默认字体设置
             self.default_font = ('宋体', 10)
-            self.title_font = ('宋体', 12, 'bold')
+            self.title_font = ('宋体', 16, 'bold')
         
     def set_app_icon(self):
         """设置应用程序图标"""
@@ -117,97 +118,117 @@ class Txt2EpubGUI:
         """配置界面样式"""
         self.style = ttk.Style()
         
+        # 使用默认主题
+        # 配置标签样式
+        self.style.configure('Title.TLabel', font=('宋体', 16, 'bold'), foreground='#333333')
+        self.style.configure('Section.TLabel', font=('宋体', 10), foreground='#555555')
+        self.style.configure('Hint.TLabel', font=('宋体', 9), foreground='#888888')
+        
+        # 配置按钮样式
+        self.style.configure('Browse.TButton', 
+                           font=('宋体', 9),
+                           padding=4)
+        
+        self.style.configure('Action.TButton',
+                           font=('宋体', 10, 'bold'),
+                           padding=6)
+        
     def create_widgets(self):
         # 主框架
-        main_frame = ttk.Frame(self.root, padding="15")
+        main_frame = ttk.Frame(self.root, padding="30")
         main_frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
         
         # 配置网格权重
         self.root.columnconfigure(0, weight=1)
         self.root.rowconfigure(0, weight=1)
         main_frame.columnconfigure(1, weight=1)
+        main_frame.rowconfigure(11, weight=1)
         
         # 标题
-        title_label = ttk.Label(main_frame, text="TXT转EPUB电子书工具", font=('Arial', 14, 'bold'))
-        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 20))
+        title_label = ttk.Label(main_frame, text="TXT转EPUB电子书工具", style='Title.TLabel')
+        title_label.grid(row=0, column=0, columnspan=3, pady=(0, 30))
         
         # 输入文件选择
-        ttk.Label(main_frame, text="TXT文件:", font=self.default_font).grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="TXT文件:", style='Section.TLabel').grid(row=1, column=0, sticky=tk.W, pady=8)
         input_frame = ttk.Frame(main_frame)
-        input_frame.grid(row=1, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        input_frame.grid(row=1, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=8)
         input_frame.columnconfigure(0, weight=1)
-        ttk.Entry(input_frame, textvariable=self.input_path, font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(input_frame, text="浏览...", command=self.browse_input).grid(row=0, column=1)
+        ttk.Entry(input_frame, textvariable=self.input_path, font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+        ttk.Button(input_frame, text="浏览...", style='Browse.TButton', command=self.browse_input).grid(row=0, column=1)
         
         # 输出文件选择
-        ttk.Label(main_frame, text="EPUB文件:", font=self.default_font).grid(row=2, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="EPUB文件:", style='Section.TLabel').grid(row=2, column=0, sticky=tk.W, pady=8)
         output_frame = ttk.Frame(main_frame)
-        output_frame.grid(row=2, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        output_frame.grid(row=2, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=8)
         output_frame.columnconfigure(0, weight=1)
-        ttk.Entry(output_frame, textvariable=self.output_path, font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(output_frame, text="浏览...", command=self.browse_output).grid(row=0, column=1)
+        ttk.Entry(output_frame, textvariable=self.output_path, font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+        ttk.Button(output_frame, text="浏览...", style='Browse.TButton', command=self.browse_output).grid(row=0, column=1)
         
         # 标题
-        ttk.Label(main_frame, text="书籍标题:", font=self.default_font).grid(row=3, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.title, font=self.default_font).grid(row=3, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        ttk.Label(main_frame, text="书籍标题:", style='Section.TLabel').grid(row=3, column=0, sticky=tk.W, pady=8)
+        ttk.Entry(main_frame, textvariable=self.title, font=self.default_font).grid(row=3, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=8)
         
         # 作者
-        ttk.Label(main_frame, text="作者:", font=self.default_font).grid(row=4, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(main_frame, textvariable=self.author, font=self.default_font).grid(row=4, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        ttk.Label(main_frame, text="作者:", style='Section.TLabel').grid(row=4, column=0, sticky=tk.W, pady=8)
+        ttk.Entry(main_frame, textvariable=self.author, font=self.default_font).grid(row=4, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=8)
         
         # 封面
-        ttk.Label(main_frame, text="封面图片:", font=self.default_font).grid(row=5, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="封面图片:", style='Section.TLabel').grid(row=5, column=0, sticky=tk.W, pady=8)
         cover_frame = ttk.Frame(main_frame)
-        cover_frame.grid(row=5, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        cover_frame.grid(row=5, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=8)
         cover_frame.columnconfigure(0, weight=1)
-        ttk.Entry(cover_frame, textvariable=self.cover_path, font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 5))
-        ttk.Button(cover_frame, text="浏览...", command=self.browse_cover).grid(row=0, column=1)
+        ttk.Entry(cover_frame, textvariable=self.cover_path, font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E), padx=(0, 10))
+        ttk.Button(cover_frame, text="浏览...", style='Browse.TButton', command=self.browse_cover).grid(row=0, column=1)
         
         # 封面预览区域
-        self.cover_preview_frame = ttk.LabelFrame(main_frame, text="封面预览", padding="5")
-        self.cover_preview_frame.grid(row=6, column=1, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        self.cover_preview_frame = ttk.LabelFrame(main_frame, text="封面预览", padding="15")
+        self.cover_preview_frame.grid(row=6, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=(15, 20))
         self.cover_preview_frame.columnconfigure(0, weight=1)
         self.cover_preview_frame.rowconfigure(0, weight=1)
         
-        self.cover_preview_label = ttk.Label(self.cover_preview_frame)
-        self.cover_preview_label.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
+        self.cover_preview_label = ttk.Label(self.cover_preview_frame, relief='solid', borderwidth=1)
+        self.cover_preview_label.grid(row=0, column=0, sticky=(tk.W, tk.E), padx=10, pady=10)
         
         # 隐藏预览区域直到选择图片
         self.cover_preview_frame.grid_remove()
         
         # 编码
-        ttk.Label(main_frame, text="文件编码:", font=self.default_font).grid(row=7, column=0, sticky=tk.W, pady=5)
+        ttk.Label(main_frame, text="文件编码:", style='Section.TLabel').grid(row=7, column=0, sticky=tk.W, pady=8)
         encoding_frame = ttk.Frame(main_frame)
-        encoding_frame.grid(row=7, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=5)
+        encoding_frame.grid(row=7, column=1, columnspan=2, sticky=(tk.W, tk.E), pady=8)
         encoding_frame.columnconfigure(0, weight=1)
         ttk.Combobox(encoding_frame, textvariable=self.selected_encoding, values=self.common_encodings, state="readonly", font=self.default_font).grid(row=0, column=0, sticky=(tk.W, tk.E))
-        ttk.Label(main_frame, text="选择文件编码格式", font=('Arial', 8, 'italic')).grid(row=8, column=1, sticky=tk.W, pady=(0, 10))
+        ttk.Label(main_frame, text="选择文件编码格式", style='Hint.TLabel').grid(row=8, column=1, sticky=tk.W, pady=(0, 15))
+        
+        # 选项框架
+        options_frame = ttk.Frame(main_frame)
+        options_frame.grid(row=9, column=0, columnspan=3, sticky=(tk.W, tk.E), pady=5)
+        options_frame.columnconfigure(0, weight=1)
+        options_frame.columnconfigure(1, weight=1)
         
         # 调试模式
-        ttk.Checkbutton(main_frame, text="调试模式", variable=self.debug_mode).grid(row=9, column=0, sticky=tk.W, pady=5)
+        ttk.Checkbutton(options_frame, text="调试模式", variable=self.debug_mode).grid(row=0, column=0, sticky=tk.W)
         
         # 文本净化选项
-        ttk.Checkbutton(main_frame, text="禁用文本净化", variable=self.disable_clean).grid(row=9, column=1, sticky=tk.W, pady=5)
+        ttk.Checkbutton(options_frame, text="禁用文本净化", variable=self.disable_clean).grid(row=0, column=1, sticky=tk.W)
         
         # 日志文本框
-        ttk.Label(main_frame, text="处理日志:", font=self.default_font).grid(row=10, column=0, sticky=tk.W, pady=(10, 5))
+        ttk.Label(main_frame, text="处理日志:", style='Section.TLabel').grid(row=10, column=0, sticky=tk.W, pady=(20, 10))
         log_frame = ttk.Frame(main_frame)
         log_frame.grid(row=11, column=0, columnspan=3, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
-        self.log_text = tk.Text(log_frame, height=18, font=self.default_font)
+        self.log_text = tk.Text(log_frame, height=18, font=('宋体', 10), relief='solid', borderwidth=1)
         log_scroll_y = ttk.Scrollbar(log_frame, orient=tk.VERTICAL, command=self.log_text.yview)
-        log_scroll_x = ttk.Scrollbar(log_frame, orient=tk.HORIZONTAL, command=self.log_text.xview)
-        self.log_text.configure(yscrollcommand=log_scroll_y.set, xscrollcommand=log_scroll_x.set)
-        self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
-        log_scroll_y.grid(row=0, column=1, sticky=(tk.N, tk.S))
-        log_scroll_x.grid(row=1, column=0, sticky=(tk.W, tk.E))
+        self.log_text.configure(yscrollcommand=log_scroll_y.set)
+        self.log_text.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S), padx=(1, 0), pady=1)
+        log_scroll_y.grid(row=0, column=1, sticky=(tk.N, tk.S), padx=(0, 1), pady=1)
         
         # 按钮框架
         button_frame = ttk.Frame(main_frame)
-        button_frame.grid(row=12, column=0, columnspan=3, pady=15)
-        ttk.Button(button_frame, text="开始转换", command=self.convert).pack(side=tk.LEFT, padx=5)
-        ttk.Button(button_frame, text="退出程序", command=self.root.quit).pack(side=tk.LEFT, padx=5)
+        button_frame.grid(row=12, column=0, columnspan=3, pady=30)
+        ttk.Button(button_frame, text="开始转换", style='Action.TButton', command=self.convert).pack(side=tk.LEFT, padx=15)
+        ttk.Button(button_frame, text="退出程序", command=self.root.quit).pack(side=tk.LEFT, padx=15)
         
         # 配置主框架的行权重
         main_frame.rowconfigure(11, weight=1)

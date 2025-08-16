@@ -21,6 +21,7 @@ def build_exe():
         sys.executable, "-m", "PyInstaller",
         "--noconfirm",
         "--windowed",  # GUI应用，不显示控制台
+        "--onefile",   # 打包成单个exe文件
         "--name", "txt2epub_gui",
         "--icon", "icons/app.png",
         "--add-data", "utils;utils",
