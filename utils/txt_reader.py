@@ -72,7 +72,7 @@ def read_txt(
         file_path: Path,
         encoding: Optional[str] = None,
         *,
-        chapter_regex: str = r"^\s*(?P<title>(?:第([零〇一二三四五六七八九十百千万]|[0-9])+[章节回卷篇]+|Chapter\s+\d+)[^\n]{0,30})",
+        chapter_regex: str = r"^\s*(?P<title>(?:第([零〇一二三四五六七八九十百千万\d]+|[IVXLCM]+)\s*[章节回卷部篇]|(?:Chapter|Section|Part|Book)\s+([IVXLCM]+|\d+)|(?:Prologue|Epilogue|Introduction|Preface|Foreword|Afterword|Appendix|Interlude|Prelude|Conclusion|Summary|Postscript)\b|序[章言]|前[言章]|引[言子]|楔子|尾声|后记|终章)[^\n]{0,50})",
         split_include_title: bool = False,
         clean_rules: list = None
 ) -> List[str] | List[Tuple[str, str]]:
@@ -169,7 +169,7 @@ def merge_lines(text):
     punctuation = r'[。！？.?!…」*”)）]'
     
     # 定义章节标题模式
-    chapter_pattern =  r"^\s*(?P<title>(?:第([零〇一二三四五六七八九十百千万]|[0-9])+[章节回卷篇]+|Chapter\s+\d+)[^\n]{0,30})"
+    chapter_pattern = r"^\s*(?P<title>(?:第([零〇一二三四五六七八九十百千万\d]+|[IVXLCM]+)\s*[章节回卷部篇]|(?:Chapter|Section|Part|Book)\s+([IVXLCM]+|\d+)|(?:Prologue|Epilogue|Introduction|Preface|Foreword|Afterword|Appendix|Interlude|Prelude|Conclusion|Summary|Postscript)\b|序[章言]|前[言章]|引[言子]|楔子|尾声|后记|终章)[^\n]{0,50})"
     
     # 将文本按行分割
     lines = text.splitlines()
